@@ -5,6 +5,13 @@ ARG BUN_IMAGE=oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bc
 
 FROM ${BUN_IMAGE} AS build
 
+USER root
+
+RUN apt-get update \
+    && apt-get install -y git \
+    && rm -rf /var/lib/apt/lists/*
+
+
 WORKDIR /home/bun/app
 
 
@@ -13,17 +20,18 @@ COPY docker/verify-compatibility.ts /tmp/verify-compatibility.ts
 
 COPY --chown=bun:bun package.json bun.lock tsconfig.json ./
 
+
 RUN bun install --frozen-lockfile
 
 
-# IMPORTANT:
-# generator membutuhkan file scripts/generate-compatibility-version.ts
 COPY --chown=bun:bun scripts ./scripts
+
 
 RUN bun scripts/generate-compatibility-version.ts
 
 
 COPY --chown=bun:bun gui/package.json gui/bun.lock ./gui/
+
 
 RUN cd gui && bun install --frozen-lockfile
 
@@ -38,7 +46,9 @@ RUN cd gui && bun run build
 
 
 
+
 FROM ${BUN_IMAGE} AS runtime
+
 
 WORKDIR /home/bun/app
 
@@ -55,9 +65,11 @@ RUN install -d -m 0700 -o bun -g bun \
     /home/bun/.codex
 
 
+
 COPY --chown=bun:bun --chmod=0600 \
     docker/config.json \
     /home/bun/.opencodex/config.json
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -75,9 +87,11 @@ COPY --from=build --chown=bun:bun \
     ./node_modules
 
 
+
 COPY --from=build --chown=bun:bun \
     /home/bun/app/src \
     ./src
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -85,9 +99,11 @@ COPY --from=build --chown=bun:bun \
     ./scripts
 
 
+
 COPY --from=build --chown=bun:bun \
     /home/bun/app/docker \
     ./docker
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -99,7 +115,9 @@ COPY --from=build --chown=bun:bun \
 USER bun
 
 
+
 RUN bun docker/verify-compatibility.ts
+
 
 
 RUN bun -e "import { readOpenCodexCompatibilityVersion } from './src/routing/compatibility/version.ts'; if (!/^[0-9a-f]{64}$/.test(readOpenCodexCompatibilityVersion() ?? '')) throw new Error('Missing or invalid generated compatibility manifest');"
@@ -109,7 +127,9 @@ RUN bun -e "import { readOpenCodexCompatibilityVersion } from './src/routing/com
 VOLUME ["/home/bun/.opencodex", "/home/bun/.codex"]
 
 
+
 EXPOSE 10100
+
 
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
