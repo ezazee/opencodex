@@ -1,17 +1,30 @@
 **
  
+# root files
 !package.json
 !bun.lock
 !tsconfig.json
 
-!scripts/
-!scripts/**
-
+# source
 !src/
 !src/**
 
+# scripts (needed for compatibility generator)
+!scripts/
+!scripts/**
+
+# docker files
 !docker/
 !docker/**
 
+# gui
 !gui/
 !gui/**
+
+# git metadata needed during build
+!.git/
+!.git/**
+
+# ignore unnecessary
+**/*.log
+**/.DS_Store
