@@ -2,31 +2,33 @@
 
 ARG BUN_IMAGE=oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895
 
+
 FROM ${BUN_IMAGE} AS build
 
 WORKDIR /home/bun/app
 
-# Copy verifier saja
+
+# Copy verifier
 COPY docker/verify-compatibility.ts /tmp/verify-compatibility.ts
 
 
-# Dependency
+# Install backend dependencies
 COPY --chown=bun:bun package.json bun.lock tsconfig.json ./
 
 RUN bun install --frozen-lockfile
 
 
-# Generate artifact yang dibutuhkan Docker build
+# Generate compatibility manifest
 RUN bun scripts/generate-compatibility-version.ts
 
 
-# GUI dependency
+# Install GUI dependencies
 COPY --chown=bun:bun gui/package.json gui/bun.lock ./gui/
 
 RUN cd gui && bun install --frozen-lockfile
 
 
-# Source
+# Copy source
 COPY --chown=bun:bun src ./src
 COPY --chown=bun:bun scripts/model-metadata.source.json ./scripts/model-metadata.source.json
 COPY --chown=bun:bun docker ./docker
@@ -35,6 +37,8 @@ COPY --chown=bun:bun gui ./gui
 
 # Build GUI
 RUN cd gui && bun run build
+
+
 
 
 
@@ -55,22 +59,27 @@ RUN install -d -m 0700 -o bun -g bun \
     /home/bun/.codex
 
 
+
 COPY --chown=bun:bun --chmod=0600 \
     docker/config.json \
     /home/bun/.opencodex/config.json
+
 
 
 COPY --from=build --chown=bun:bun \
     /home/bun/app/package.json \
     ./package.json
 
+
 COPY --from=build --chown=bun:bun \
     /home/bun/app/bun.lock \
     ./bun.lock
 
+
 COPY --from=build --chown=bun:bun \
     /home/bun/app/node_modules \
     ./node_modules
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -78,10 +87,12 @@ COPY --from=build --chown=bun:bun \
     ./src
 
 
-# Generated compatibility manifest
+
+# Generated compatibility file
 COPY --from=build --chown=bun:bun \
     /home/bun/app/src/generated/compatibility-version.json \
     ./src/generated/compatibility-version.json
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -89,9 +100,11 @@ COPY --from=build --chown=bun:bun \
     ./scripts/model-metadata.source.json
 
 
+
 COPY --from=build --chown=bun:bun \
     /home/bun/app/docker \
     ./docker
+
 
 
 COPY --from=build --chown=bun:bun \
@@ -103,19 +116,21 @@ COPY --from=build --chown=bun:bun \
 USER bun
 
 
-RUN ["bun", "docker/verify-compatibility.ts"]
+
+RUN bun docker/verify-compatibility.ts
 
 
-RUN ["bun", "-e", "import { readOpenCodexCompatibilityVersion } from './src/routing/compatibility/version.ts'; if (!/^[0-9a-f]{64}$/.test(readOpenCodexCompatibilityVersion() ?? '')) throw new Error('Missing or invalid generated compatibility manifest');"]
+
+RUN bun -e "import { readOpenCodexCompatibilityVersion } from './src/routing/compatibility/version.ts'; if (!/^[0-9a-f]{64}$/.test(readOpenCodexCompatibilityVersion() ?? '')) throw new Error('Missing or invalid generated compatibility manifest');"
 
 
-VOLUME [
-    "/home/bun/.opencodex",
-    "/home/bun/.codex"
-]
+
+VOLUME ["/home/bun/.opencodex", "/home/bun/.codex"]
+
 
 
 EXPOSE 10100
+
 
 
 HEALTHCHECK \
@@ -123,14 +138,8 @@ HEALTHCHECK \
     --timeout=5s \
     --start-period=20s \
     --retries=3 \
-    CMD ["bun", "-e", "const r=await fetch('http://127.0.0.1:10100/healthz');if(!r.ok)process.exit(1)"]
+    CMD bun -e "const r=await fetch('http://127.0.0.1:10100/healthz');if(!r.ok)process.exit(1)"
 
 
-CMD [
-    "bun",
-    "run",
-    "src/cli/index.ts",
-    "start",
-    "--port",
-    "10100"
-]
+
+CMD ["bun", "run", "src/cli/index.ts", "start", "--port", "10100"]
