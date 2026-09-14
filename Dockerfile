@@ -24,10 +24,15 @@ COPY --chown=bun:bun package.json bun.lock tsconfig.json ./
 RUN bun install --frozen-lockfile
 
 
+# Needed by generate-compatibility-version.ts
 COPY --chown=bun:bun scripts ./scripts
+
+# Needed because generator uses git ls-files
+COPY --chown=bun:bun .git ./.git
 
 
 RUN bun scripts/generate-compatibility-version.ts
+
 
 
 COPY --chown=bun:bun gui/package.json gui/bun.lock ./gui/
@@ -36,9 +41,11 @@ COPY --chown=bun:bun gui/package.json gui/bun.lock ./gui/
 RUN cd gui && bun install --frozen-lockfile
 
 
+
 COPY --chown=bun:bun src ./src
 COPY --chown=bun:bun docker ./docker
 COPY --chown=bun:bun gui ./gui
+
 
 
 RUN cd gui && bun run build
@@ -53,11 +60,13 @@ FROM ${BUN_IMAGE} AS runtime
 WORKDIR /home/bun/app
 
 
+
 ENV NODE_ENV=production \
     OCX_SERVICE=1 \
     OPENCODEX_HOME=/home/bun/.opencodex \
     CODEX_HOME=/home/bun/.codex \
     OCX_API_TOKEN_FILE=/home/bun/.opencodex/service-api-token
+
 
 
 RUN install -d -m 0700 -o bun -g bun \
@@ -117,7 +126,6 @@ USER bun
 
 
 RUN bun docker/verify-compatibility.ts
-
 
 
 RUN bun -e "import { readOpenCodexCompatibilityVersion } from './src/routing/compatibility/version.ts'; if (!/^[0-9a-f]{64}$/.test(readOpenCodexCompatibilityVersion() ?? '')) throw new Error('Missing or invalid generated compatibility manifest');"
